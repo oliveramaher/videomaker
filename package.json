@@ -1,0 +1,27 @@
+{
+  "name": "videomaker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "exports": {
+    ".": "./src/capture.mjs",
+    "./prepare": "./src/prepare-demo.mjs",
+    "./remotion": "./video/ProductDemo.jsx"
+  },
+  "scripts": {
+    "capture": "node src/cli.mjs",
+    "studio": "remotion studio video/index.jsx --no-open --public-dir=output/video-assets",
+    "render": "remotion render video/index.jsx ProductDemo --public-dir=output/video-assets",
+    "prepare-demo": "node src/prepare-cli.mjs"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.541",
+    "playwright": "1.62.1",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "remotion": "4.0.541"
+  }
+}

@@ -1,0 +1,74 @@
+export const viewport = {width: 1440, height: 900};
+
+const prompt = 'Why does the Earth spin?';
+
+export default async function ({page, step, checkpoint, director}) {
+  const {cursor, camera, wait} = director;
+  await step('Open Gemini', () => page.goto('https://gemini.google.com/app', {
+    waitUntil: 'domcontentloaded',
+    timeout: 30000,
+  }));
+  const composer = page.getByRole('textbox', {name: /enter a prompt for gemini/i}).first();
+  await composer.waitFor({state: 'visible', timeout: 20000});
+  await page.evaluate(() => document.fonts.ready.then(() => {}));
+  await checkpoint('Ready');
+
+  await director.start({x: 1128, y: 690});
+  await wait(740);
+
+  await step('Focus prompt', () => cursor.click(composer, {
+    position: {x: 0.055, y: 0.5}, durationMs: 1080, bend: 0.3,
+  }));
+  const zoom = 1.57;
+  const anchor = {x: 0.48, y: 0.52};
+  await camera.focus(composer, {zoom, anchor, durationMs: 820});
+  await wait(680);
+
+  await step('Type prompt', () => director.type(prompt, {
+    seed: 378,
+    delayMs: 64,
+    jitterMs: 36,
+    follow: {target: composer, zoom, anchor, amount: 0.44},
+  }));
+  await checkpoint('Prompt typed');
+  await wait(380);
+
+  const send = page.getByRole('button', {name: 'Send message', exact: true}).first();
+  await send.waitFor({state: 'visible'});
+  await step('Send prompt', async () => {
+    await camera.focus(send, {
+      zoom: 1.43,
+      anchor: {x: 0.81, y: 0.58},
+      durationMs: 640,
+    });
+    await cursor.click(send, {durationMs: 820, bend: -0.18});
+    director.mark('Submitted');
+    camera.wide(880);
+  });
+
+  const stop = page.getByRole('button', {name: 'Stop response', exact: true}).first();
+  const text = page.locator('.model-response-text:visible').filter({hasText: /\S/}).first();
+  await step('Watch Gemini respond', async () => {
+    const loading = await stop.waitFor({state: 'visible', timeout: 5000}).then(() => true, () => false);
+    if (loading) {
+      director.mark('Generating');
+      await checkpoint('Generating');
+    }
+    await cursor.move({x: 1352, y: 780}, {durationMs: 680, bend: 0.12});
+    cursor.hide();
+
+    await text.waitFor({state: 'visible', timeout: 45000});
+    director.mark('Response begins');
+    await camera.focus(text, {
+      zoom: 1.25,
+      anchor: {x: 0.49, y: 0.30},
+      position: {x: 0.5, y: 0.04},
+      durationMs: 1200,
+    });
+    await checkpoint('Response begins');
+    await stop.waitFor({state: 'hidden', timeout: 60000});
+  });
+  director.mark('Response complete');
+  await wait(1300);
+  director.end();
+}
