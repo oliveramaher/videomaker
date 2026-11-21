@@ -2,6 +2,11 @@
 
 A Playwright library and CLI for recording a website interaction and collecting the browser state behind it. Each capture is a local directory with timestamped viewport pixels and structured UI snapshots that an editor or conversion pipeline can consume later.
 
+## What’s in the repo
+
+- **General library** — [`src/`](src/) records browser footage and UI state, directs mouse and camera movements, and prepares a timeline. [`video/`](video/) renders that timeline with Remotion. Any product can supply its own Playwright recipe.
+- **Gemini example** — [`examples/gemini-directed.mjs`](examples/gemini-directed.mjs) opens Gemini, types and submits a prompt, then frames the response. [`examples/gemini.mjs`](examples/gemini.mjs) is the capture-only version.
+
 ## Make a product demo
 
 ```sh
