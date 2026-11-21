@@ -13,21 +13,21 @@ export default async function ({page, step, checkpoint, director}) {
   await page.evaluate(() => document.fonts.ready.then(() => {}));
   await checkpoint('Ready');
 
-  await director.start({x: 1128, y: 690});
-  await wait(740);
+  const openingPointer = {x: 1128, y: 690};
+  await director.start(openingPointer);
 
   await step('Focus prompt', () => cursor.click(composer, {
-    position: {x: 0.055, y: 0.5}, durationMs: 1080, bend: 0.3,
+    from: openingPointer, startAtMs: 740,
+    position: {x: 0.055, y: 0.5}, speedPxPerSecond: 560, bend: 0.3,
   }));
   const zoom = 1.57;
   const anchor = {x: 0.48, y: 0.52};
   await camera.focus(composer, {zoom, anchor, durationMs: 820});
-  await wait(680);
 
   await step('Type prompt', () => director.type(prompt, {
     seed: 378,
-    delayMs: 64,
-    jitterMs: 36,
+    startAtMs: 2650,
+    wordsPerMinute: 155,
     follow: {target: composer, zoom, anchor, amount: 0.44},
   }));
   await checkpoint('Prompt typed');

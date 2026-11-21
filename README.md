@@ -47,6 +47,21 @@ The director operates in viewport CSS pixels. Use Playwright locators or viewpor
 
 Each product recipe supplies its own selectors and waits for the specific UI states to film.
 
+### Schedule typing and mouse movements
+
+```js
+await director.start({x: 900, y: 650});
+await director.cursor.move({x: 380, y: 410}, {
+  from: {x: 900, y: 650},
+  startAtMs: 500,
+  speedPxPerSecond: 600,
+});
+// Focus the field before typing.
+await director.type('Find my project', {startAtMs: 1900, wordsPerMinute: 85, seed: 42});
+```
+
+`startAtMs` is measured from `director.start()`. Awaited actions start as soon as possible if the scheduled time has passed. Typing uses seeded timing variation and pauses around spaces and punctuation. Mouse speed sets the duration from the straight-line distance. The cursor follows an eased Bézier curve between the endpoints.
+
 ## Optional live Gemini recipe
 
 ```sh

@@ -30,6 +30,16 @@ function randomGenerator(seed) {
 /** Direct browser input and record editable cues in the same clock as capture. */
 export function createDirector(page, viewport, emit) {
   let pointer = {x: viewport.width * 0.85, y: viewport.height * 0.78};
+  let takeStart;
+  const waitUntil = async (startAtMs) => {
+    if (startAtMs === undefined) return;
+    if (!Number.isFinite(startAtMs) || startAtMs < 0) {
+      throw new RangeError('startAtMs must be a nonnegative number.');
+    }
+    if (takeStart === undefined) throw new Error('Call director.start() before scheduling an action.');
+    const remaining = takeStart + startAtMs - performance.now();
+    if (remaining > 0) await wait(Math.ceil(remaining));
+  };
   const record = (kind, data = {}) => emit({kind, atMs: Date.now(), ...data});
   const boundedPoint = ({x, y}) => ({
     x: clamp(x, 0, viewport.width - 1),
@@ -43,12 +53,20 @@ export function createDirector(page, viewport, emit) {
     record('pointer', {...pointer, action: 'move'});
   };
 
-  const move = async (target, {durationMs = 760, bend = 0.25, position: fraction} = {}) => {
+  const move = async (target, {from, startAtMs, speedPxPerSecond, durationMs, bend = 0.25, position: fraction} = {}) => {
+    await waitUntil(startAtMs);
     const end = boundedPoint(await targetPoint(target, fraction));
+    if (from) await position(from);
     const start = pointer;
     const dx = end.x - start.x;
     const dy = end.y - start.y;
-    const steps = Math.max(1, Math.ceil(durationMs / 14));
+    if (speedPxPerSecond !== undefined && (!Number.isFinite(speedPxPerSecond) || speedPxPerSecond <= 0)) {
+      throw new RangeError('speedPxPerSecond must be positive.');
+    }
+    const duration = durationMs ?? (speedPxPerSecond === undefined
+      ? 760 : 1000 * Math.hypot(dx, dy) / speedPxPerSecond);
+    if (!Number.isFinite(duration) || duration < 0) throw new RangeError('durationMs must be nonnegative.');
+    const steps = Math.max(1, Math.ceil(duration / 14));
     const started = performance.now();
     for (let step = 1; step <= steps; step++) {
       const progress = step / steps;
@@ -60,7 +78,7 @@ export function createDirector(page, viewport, emit) {
         x: start.x + a * (dx * 0.23 - dy * bend) + b * (dx * 0.77 - dy * bend * 0.6) + t ** 3 * dx,
         y: start.y + a * (dy * 0.23 + dx * bend) + b * (dy * 0.77 + dx * bend * 0.6) + t ** 3 * dy,
       };
-      const remaining = started + progress * durationMs - performance.now();
+      const remaining = started + progress * duration - performance.now();
       if (remaining > 0) await wait(remaining);
       await position(curve);
     }
@@ -76,6 +94,7 @@ export function createDirector(page, viewport, emit) {
     wait,
     async start(point = pointer) {
       await position(point);
+      takeStart = performance.now();
       record('start');
     },
     end() { record('end'); },
@@ -104,13 +123,24 @@ export function createDirector(page, viewport, emit) {
         record('camera', {zoom: 1, durationMs});
       },
     },
-    async type(text, {seed = 42, delayMs = 55, jitterMs = 32, follow} = {}) {
+    async type(text, {startAtMs, wordsPerMinute, seed = 42, delayMs = 55, jitterMs = 32, follow} = {}) {
+      if (wordsPerMinute !== undefined && (!Number.isFinite(wordsPerMinute) || wordsPerMinute <= 0)) {
+        throw new RangeError('wordsPerMinute must be positive.');
+      }
       const random = randomGenerator(seed);
       const origin = follow ? await targetPoint(follow.target) : null;
       const segments = new Intl.Segmenter(undefined, {granularity: 'grapheme'}).segment(text);
+      await waitUntil(startAtMs);
+      const interval = wordsPerMinute === undefined ? delayMs : 12000 / wordsPerMinute;
+      let nextAt = performance.now();
       for (const [index, {segment}] of Array.from(segments).entries()) {
-        const delay = delayMs + (random() * 2 - 1) * jitterMs + (/\s/u.test(segment) ? 38 : 0);
-        await wait(Math.max(0, delay));
+        if (startAtMs === undefined || index > 0) {
+          const jitter = wordsPerMinute === undefined ? jitterMs : interval * 0.38;
+          const pause = /[.!?,;:\s]/u.test(segment) ? interval * 0.45 : 0;
+          nextAt += Math.max(0, interval + (random() * 2 - 1) * jitter + pause);
+          const remaining = nextAt - performance.now();
+          if (remaining > 0) await wait(Math.ceil(remaining));
+        }
         await page.keyboard.type(segment);
         record('type', {index, segment});
         if (follow) {
