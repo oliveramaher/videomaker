@@ -11,6 +11,17 @@ export default async function ({page, step, checkpoint, director}) {
   const composer = page.getByRole('textbox', {name: /enter a prompt for gemini/i}).first();
   await composer.waitFor({state: 'visible', timeout: 20000});
   await page.evaluate(() => document.fonts.ready.then(() => {}));
+  // Let Gemini populate its genuine suggestion cards before directing the take.
+  await page.locator('.suggestion-container .card-button').first()
+    .waitFor({state: 'visible', timeout: 5000})
+    .catch((error) => { if (error.name !== 'TimeoutError') throw error; });
+  for (const label of ['About Gemini', 'Subscriptions', 'For Business']) {
+    await director.hideElement(`[aria-label="${label}" i], [aria-label="${label} link" i]`);
+  }
+  await director.hideElement('signed-out-task-toggle-tooltip');
+  await director.hideElement('sign-in-nudge gem-banner[variant="overlay"]');
+
+  await director.waitForReady([composer, page.locator('.gemini-sidenav-text').first()]);
   await checkpoint('Ready');
 
   const openingPointer = {x: 1128, y: 690};
@@ -55,16 +66,10 @@ export default async function ({page, step, checkpoint, director}) {
       await checkpoint('Generating');
     }
     await cursor.move({x: 1352, y: 780}, {durationMs: 680, bend: 0.12});
-    cursor.hide();
+    await cursor.hide();
 
     await text.waitFor({state: 'visible', timeout: 45000});
     director.mark('Response begins');
-    await camera.focus(text, {
-      zoom: 1.25,
-      anchor: {x: 0.49, y: 0.30},
-      position: {x: 0.5, y: 0.04},
-      durationMs: 1200,
-    });
     await checkpoint('Response begins');
     await stop.waitFor({state: 'hidden', timeout: 60000});
   });

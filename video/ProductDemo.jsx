@@ -89,10 +89,16 @@ export function ProductDemo({take, plan, cursorScale, cameraStrength, clickColor
   const moves = useMemo(() => plan ? buildCamera(plan, cameraStrength) : [], [plan, cameraStrength]);
   const track = useMemo(() => plan?.cues.filter(({kind}) => kind === 'pointer') ?? [], [plan]);
   const clicks = useMemo(() => track.filter(({action}) => action === 'down'), [track]);
+  const browserHover = useMemo(() => plan?.cues.filter(({kind}) => kind === 'browser-hover') ?? [], [plan]);
   const source = plan?.timeline[Math.min(frame, plan.timeline.length - 1)];
   if (!source) return <AbsoluteFill style={{backgroundColor: '#f6f7fa'}} />;
 
-  const {atMs} = source;
+  const {atMs, pixelsAtMs = atMs} = source;
+  const hoverInPixels = browserHover.findLast((cue) => cue.atMs <= pixelsAtMs);
+  const hoverNow = browserHover.findLast((cue) => cue.atMs <= atMs);
+  // Give Chromium one brief opportunity to repaint an exited hover.
+  const pointerTime = hoverInPixels?.target && hoverNow && hoverInPixels !== hoverNow
+    && atMs - hoverNow.atMs <= 120 ? pixelsAtMs : atMs;
   const pose = cameraAt(moves.findLast((move) => move.atMs <= atMs), atMs);
   return (
     <AbsoluteFill style={{overflow: 'hidden', backgroundColor: '#f6f7fa'}}>
@@ -108,7 +114,7 @@ export function ProductDemo({take, plan, cursorScale, cameraStrength, clickColor
         }}
       />
       <VirtualPointer
-        point={pointerAt(track, atMs)}
+        point={pointerAt(track, pointerTime)}
         click={clicks.findLast((click) => click.atMs <= atMs)}
         pose={pose}
         atMs={atMs}

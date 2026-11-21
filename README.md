@@ -62,7 +62,25 @@ await director.type('Find my project', {startAtMs: 1900, wordsPerMinute: 85, see
 
 `startAtMs` is measured from `director.start()`. Awaited actions start as soon as possible if the scheduled time has passed. Typing uses seeded timing variation and pauses around spaces and punctuation. Mouse speed sets the duration from the straight-line distance. The cursor follows an eased Bézier curve between the endpoints.
 
+### Direct hover and check shot readiness
+
+```js
+await director.waitForReady([logo, searchField], {stableMs: 400});
+await director.start();
+await director.cursor.move({x: 480, y: 320});
+const effect = await director.cursor.hover(helpButton, {holdMs: 500});
+await director.cursor.click(searchField);
+```
+
+`waitForReady` checks the selected elements' geometry and visual properties before filming. Cursor travel is drawn in Remotion while the browser pointer is parked outside the viewport. Explicit hovers and clicks send real input at the destination, so the browser runs the site's native styles and JavaScript. A hover probe records selected visual properties before and after, plus newly visible popup candidates. The capture also records browser hit targets and source-frame timestamps to help align the virtual cursor with interactive states.
+
+The browser remains the runtime for site behavior. The saved frames, snapshots, and interaction cues support editing and inspection after capture. Re-running a new interaction still requires the browser and the site.
+
 ## Optional live Gemini recipe
+
+Use `await director.hideElement('.onboarding-tooltip')` to hide elements by CSS selector. The rule removes matching elements from the filmed layout, including elements inserted later. Register it before navigation to suppress a popup from the first frame. The Gemini recipe uses it for the task tooltip, the sign-in overlay, and three marketing links.
+
+`await director.findPopupCandidates()` returns visible candidates in the main document with their text, bounds, and detection reasons. It checks for native dialogs and popovers, ARIA dialog and tooltip semantics, and explicit overlay variants. Custom popups without these signals may need manual inspection. The recipe chooses which candidates to hide.
 
 ```sh
 npm run capture -- examples/gemini-directed.mjs --output output/playwright/gemini-directed

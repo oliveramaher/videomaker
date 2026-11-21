@@ -44,7 +44,7 @@ export async function prepareDemo({capture, publicDir, name = basename(resolve(c
     for (; outputFrame / fps < segmentEnd; outputFrame++) {
       const atMs = (from + outputFrame / fps - editTime) * 1000;
       while (index + 1 < frames.length && frames[index + 1].atMs <= atMs) index++;
-      timeline.push({file: frames[index].file, atMs});
+      timeline.push({file: frames[index].file, atMs, pixelsAtMs: frames[index].atMs});
     }
     editTime = segmentEnd;
   }
