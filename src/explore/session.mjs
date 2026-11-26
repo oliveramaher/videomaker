@@ -102,6 +102,20 @@ export async function openSession({
 
   const drainEvents = () => events.splice(0, events.length);
 
+  /** Wait until the page stops changing (streamed AI output, staggered animations), up to a cap. */
+  const settle = async ({quietMs = 450, maxMs = 4000} = {}) => {
+    const deadline = Date.now() + maxMs;
+    let last = '';
+    let since = Date.now();
+    await page.waitForTimeout(150);
+    while (Date.now() < deadline) {
+      const now = await page.evaluate(() => `${document.body?.innerText.length}:${document.getElementsByTagName('*').length}`)
+        .catch(() => '');
+      if (now !== last) { last = now; since = Date.now(); } else if (Date.now() - since >= quietMs) return;
+      await page.waitForTimeout(100);
+    }
+  };
+
   /** Perform a guarded action, then return what changed plus a fresh observation. */
   const act = (kind, ref, perform, extra = {}) => serial(async () => {
     if (!current) await look();
@@ -121,7 +135,7 @@ export async function openSession({
     try {
       await perform(target, element);
       await page.waitForLoadState('domcontentloaded', {timeout: 3000}).catch(() => {});
-      await page.waitForTimeout(400);
+      await settle();
       if (recovering) await recovering;
     } catch (caught) {
       error = caught.message.split('\n')[0];
@@ -176,6 +190,58 @@ export async function openSession({
       return look();
     }),
     observe: () => serial(look),
+
+    /**
+     * Free pre-crawl: follow same-origin links (no clicks, no model, no screenshots) and
+     * summarize each page, so the agent starts knowing the layout. Ends back on startUrl.
+     */
+    crawl: ({maxPages = 12, maxDepth = 2} = {}) => serial(async () => {
+      const pages = [];
+      const seen = new Set();
+      const queue = [{url: startUrl, depth: 0}];
+      const normalize = (url) => {
+        const parsed = new URL(url);
+        return parsed.origin + parsed.pathname.replace(/\/$/, '') + parsed.search + parsed.hash;
+      };
+      while (queue.length && pages.length < maxPages) {
+        const {url, depth} = queue.shift();
+        const key = normalize(url);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        try {
+          await page.goto(url, {waitUntil: 'domcontentloaded'});
+          await page.waitForTimeout(250);
+        } catch {
+          continue;
+        }
+        const state = await observe(page, {screenshots: false});
+        if (guard.checkUrl(state.url)) continue;
+        const pick = (roles, limit) => state.elements.filter((el) => roles.includes(el.role) && el.name)
+          .map((el) => el.name).filter((name, i, all) => all.indexOf(name) === i).slice(0, limit);
+        pages.push({
+          url: state.url,
+          title: state.title,
+          headings: state.headings.slice(0, 4),
+          buttons: pick(['button', 'menuitem', 'tab', 'switch', 'checkbox'], 12),
+          links: pick(['link'], 12),
+          fields: pick(['textbox', 'searchbox', 'combobox', 'slider'], 8),
+        });
+        const pathKey = new URL(state.url).pathname + new URL(state.url).hash.replace(/\/\d+(?=\/|$)/g, '/:id');
+        map.pages[pathKey] ??= {url: state.url, title: state.title, headings: state.headings};
+        if (depth >= maxDepth) continue;
+        const links = await page.evaluate(() => Array.from(document.querySelectorAll('a[href]'))
+          .filter((a) => a.checkVisibility())
+          .map((a) => ({href: a.href, name: (a.getAttribute('aria-label') || a.innerText || '').replace(/\s+/g, ' ').trim()})));
+        for (const link of links) {
+          if (guard.checkUrl(link.href) || guard.checkElement({name: link.name}, 'click')) continue;
+          if (!seen.has(normalize(link.href))) queue.push({url: link.href, depth: depth + 1});
+        }
+      }
+      await writeFile(join(directory, 'crawl.json'), JSON.stringify(pages, null, 2));
+      await page.goto(startUrl, {waitUntil: 'domcontentloaded'}).catch(() => {});
+      current = null;
+      return pages;
+    }),
 
     click: (ref) => act('click', ref, (target, element) =>
       target.click({timeout: 5000, position: element.clickPoint})),

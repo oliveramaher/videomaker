@@ -107,7 +107,20 @@ function collectElements(maxElements) {
     }));
   const headings = Array.from(document.querySelectorAll('h1, h2, h3'))
     .filter((el) => el.checkVisibility()).map((el) => clean(el.innerText)).filter(Boolean).slice(0, 12);
-  return {url: location.href, title: document.title, headings, dialogs, elements,
+  // Visible text, one entry per element, so diffs can say what appeared without a screenshot.
+  const texts = [];
+  const textWalker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  const textSeen = new Set();
+  for (let node = textWalker.nextNode(); node && texts.length < 150; node = textWalker.nextNode()) {
+    const parent = node.parentElement;
+    if (!parent || textSeen.has(parent) || ['SCRIPT', 'STYLE', 'NOSCRIPT'].includes(parent.tagName)) continue;
+    if (!clean(node.textContent) || !parent.checkVisibility({opacityProperty: true, visibilityProperty: true})) continue;
+    const box = parent.getBoundingClientRect();
+    if (box.bottom < 0 || box.top > innerHeight) continue;
+    textSeen.add(parent);
+    texts.push(clean(Array.from(parent.childNodes, (child) => child.nodeType === 3 ? child.textContent : '').join(' ')).slice(0, 120));
+  }
+  return {url: location.href, title: document.title, headings, dialogs, elements, texts: texts.filter(Boolean),
     scroll: {y: Math.round(scrollY), max: Math.round(document.documentElement.scrollHeight - innerHeight)}};
 }
 
@@ -131,14 +144,39 @@ function drawMarks(elements) {
 
 const removeMarks = () => document.getElementById('__vm_marks')?.remove();
 
-/** Observe the page. Returns structured state plus a marked JPEG and a clean JPEG. */
-export async function observe(page, {maxElements = 80} = {}) {
+const cdpSessions = new WeakMap();
+
+/** A JPEG of the viewport scaled to `width` pixels. Image tokens scale with pixel count. */
+async function scaledScreenshot(page, width, quality) {
+  const viewport = page.viewportSize();
+  if (!viewport || width >= viewport.width) return page.screenshot({type: 'jpeg', quality});
+  let session = cdpSessions.get(page);
+  if (!session) {
+    session = await page.context().newCDPSession(page);
+    cdpSessions.set(page, session);
+  }
+  const {data} = await session.send('Page.captureScreenshot', {
+    format: 'jpeg', quality,
+    clip: {x: 0, y: 0, width: viewport.width, height: viewport.height, scale: width / viewport.width},
+  });
+  return Buffer.from(data, 'base64');
+}
+
+/** Rough image-token cost of a screenshot sent to the model (pixels / 750). */
+export const imageTokens = (width, height) => Math.ceil(width * height / 750);
+
+/**
+ * Observe the page: structured state, plus (unless `screenshots: false`) a full-size clean
+ * JPEG for the record and a numbered JPEG at `modelWidth` for the model.
+ */
+export async function observe(page, {maxElements = 80, screenshots = true, modelWidth = 1024} = {}) {
   await page.waitForLoadState('domcontentloaded').catch(() => {});
   await page.waitForTimeout(150);
   const state = await page.evaluate(collectElements, maxElements);
+  if (!screenshots) return {...state, screenshots: null};
   const clean = await page.screenshot({type: 'jpeg', quality: 80});
   await page.evaluate(drawMarks, state.elements);
-  const marked = await page.screenshot({type: 'jpeg', quality: 70});
+  const marked = await scaledScreenshot(page, modelWidth, 70);
   await page.evaluate(removeMarks);
   return {...state, screenshots: {clean, marked}};
 }
@@ -177,6 +215,14 @@ export function diff(before, after) {
   const oldHeadings = new Set(before.headings);
   const newHeadings = after.headings.filter((text) => !oldHeadings.has(text));
   if (newHeadings.length) changes.push(`new headings: ${newHeadings.join(' | ')}`);
+  const oldTexts = new Set(before.texts ?? []);
+  const newTexts = (after.texts ?? []).filter((text) => !oldTexts.has(text) && !newHeadings.includes(text));
+  if (newTexts.length) {
+    const chars = newTexts.reduce((sum, text) => sum + text.length, 0);
+    let preview = newTexts.join(' | ');
+    if (preview.length > 280) preview = `${preview.slice(0, 280)}…`;
+    changes.push(`new text (${chars} chars): ${preview}`);
+  }
   const names = (s) => new Set(s.elements.map((el) => `${el.role}:${el.name}`));
   const oldNames = names(before);
   const appeared = after.elements.filter((el) => !oldNames.has(`${el.role}:${el.name}`));

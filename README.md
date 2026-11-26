@@ -107,7 +107,12 @@ Output lands in `output/explore/<timestamp>/`: `product-map.json`, `actions.json
 
 - **Credentials** are typed into the login form by code and saved as a Playwright session. They are never sent to the model. Use `npm run login -- --manual` to sign in by hand for MFA or SSO.
 - **Guard.** Clicks on anything that looks destructive or outward-facing (delete, pay, upgrade, send, invite, log out…) are refused in code, as is pressing Enter in a form whose button would be refused, and navigating to another site. Pass `--allow "Exact button name"` to permit a specific button.
-- **Cost.** Each action is one model request with a screenshot. `--actions` caps browser actions; old screenshots are cleared from context automatically. The CLI prints token usage at the end. Defaults: `claude-opus-5-5` at `--effort medium`.
+- **Cost.** Each action is one model request. To keep tokens down:
+  - A free Playwright pre-crawl of the app's links (no clicks) gives Claude a site map up front. `--no-crawl` skips it.
+  - Each action returns a text description of what changed, including new text. A numbered screenshot (1024px) is attached only when the page changes a lot (new page, dialog, new content), on errors, every 5th action, or when Claude passes `look: true`.
+  - Old screenshots are cleared from context automatically.
+
+  `--actions` caps browser actions. The CLI prints token usage and how many screenshots were sent. Defaults: `claude-opus-5-5` at `--effort medium`.
 - `npm test` runs the explorer against the demo app, including the agent loop with a scripted model (no API calls).
 
 ## Make a vertical ad

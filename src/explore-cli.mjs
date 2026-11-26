@@ -33,6 +33,7 @@ try {
       url: {type: 'string'}, 'storage-state': {type: 'string'}, output: {type: 'string'},
       actions: {type: 'string'}, brief: {type: 'string'}, model: {type: 'string'}, effort: {type: 'string'},
       allow: {type: 'string', multiple: true}, headed: {type: 'boolean'}, 'no-fallbacks': {type: 'boolean'},
+      'no-crawl': {type: 'boolean'},
     }});
     const startUrl = values.url ?? process.env.APP_URL;
     if (!startUrl) throw new Error('Pass --url or set APP_URL.');
@@ -49,6 +50,7 @@ try {
       fallbacks: !values['no-fallbacks'],
       headless: !values.headed,
       allowNames: values.allow ?? [],
+      crawl: !values['no-crawl'],
       onProgress: (event) => {
         if (event.type === 'text') console.log(`\n${event.text}`);
         if (event.type === 'tool') {
@@ -62,6 +64,8 @@ try {
       + `${Object.keys(map.pages).length} pages, ${map.clutter.length} clutter items.`);
     console.log(`Tokens: ${usage.input} in (+${usage.cacheRead} cached read, ${usage.cacheWrite} cache write), `
       + `${usage.output} out over ${usage.requests} requests.`);
+    console.log(`Screenshots after actions: ${result.stats.images} of ${result.stats.actions}; `
+      + `pre-crawled ${result.stats.crawledPages} pages.`);
     console.log(`Product map: ${result.path}`);
   } else if (command === 'make-ad') {
     const {values} = parseArgs({args: rest, options: {

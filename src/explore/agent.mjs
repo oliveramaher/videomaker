@@ -8,7 +8,7 @@ import {openSession} from './session.mjs';
 const SYSTEM = `You are exploring a web app so that a video team can later make a short, polished ad for it.
 Nobody on the team knows this product. Your job is to find out what it does and which moments would look great on screen.
 
-You control a real, logged-in browser through tools. Every observation gives you a screenshot with numbered pink boxes and a matching list of elements; act on elements by their ref number. Refs change after every action, so always use refs from the latest observation.
+You control a real, logged-in browser through tools. Every observation gives you a list of interactive elements with ref numbers; act on elements by ref. Refs change after every action, so always use refs from the latest observation. A screenshot with matching numbered pink boxes comes along when the page changes noticeably (new page, dialog, lots of new content); otherwise you get a text summary of what changed. Add look: true to an action, or call observe, whenever you need to see the screen, e.g. to judge how good something looks.
 
 What to produce, using the record_* tools as you go:
 - record_page for each distinct screen: what it is for, in one sentence.
@@ -25,21 +25,46 @@ How to explore:
 
 Finish by calling finish with a summary of the product, who it seems to be for, and the 3-5 strongest ad moments.`;
 
-function observationContent(session, state, header) {
+function observationContent(session, state, header, {image = true} = {}) {
   const parts = [];
   if (header) parts.push(header);
   parts.push(session.describe(state));
-  return [
-    {type: 'text', text: parts.join('\n\n')},
-    {type: 'image', source: {type: 'base64', media_type: 'image/jpeg', data: state.screenshots.marked.toString('base64')}},
-  ];
+  const content = [{type: 'text', text: parts.join('\n\n')}];
+  if (image && state.screenshots?.marked) {
+    content.push({type: 'image', source: {type: 'base64', media_type: 'image/jpeg', data: state.screenshots.marked.toString('base64')}});
+  }
+  return content;
 }
 
-function makeTools(session, budget) {
+/**
+ * Whether a screenshot is worth its tokens after an action. The text diff and element list
+ * always go along; the image only when the screen probably changed in a way words miss.
+ */
+export function needsScreenshot(entry, {asked = false, sinceLast = 0, maxGap = 5} = {}) {
+  if (asked) return true;
+  if (!entry || entry.refused) return false;
+  if (entry.error) return true;
+  if (entry.urlBefore !== entry.urlAfter) return true;
+  if (sinceLast >= maxGap) return true;
+  return (entry.changes ?? []).some((change) => /^(opened|closed|new headings)/.test(change)
+    || Number(/^(\d+) new controls/.exec(change)?.[1] ?? 0) >= 5
+    || Number(/^new text \((\d+) chars\)/.exec(change)?.[1] ?? 0) >= 80);
+}
+
+/** One compact line per crawled page. */
+export function describeSitemap(pages) {
+  const list = (label, items) => items.length ? ` ${label}: ${items.join(', ')}.` : '';
+  return pages.map((p) => `- ${new URL(p.url).pathname}${new URL(p.url).hash} "${p.headings[0] ?? p.title}".`
+    + list('Buttons', p.buttons) + list('Links', p.links) + list('Fields', p.fields)).join('\n');
+}
+
+function makeTools(session, budget, {maxGap = 5} = {}) {
   let used = 0;
   let finished = null;
+  let sinceImage = 0;
+  const stats = {actions: 0, images: 0};
 
-  const actionResult = (result) => {
+  const actionResult = (result, {asked = false} = {}) => {
     used += 1;
     const remaining = budget - used;
     const {entry, refused, state} = result;
@@ -51,8 +76,12 @@ function makeTools(session, budget) {
       if (entry.changes?.length) lines.push(`Changes: ${entry.changes.join('; ')}`);
       if (entry.events?.length) lines.push(`Events: ${entry.events.join('; ')}`);
     }
+    const image = needsScreenshot(refused ? {refused} : entry, {asked, sinceLast: sinceImage, maxGap});
+    stats.actions += 1;
+    if (image) { stats.images += 1; sinceImage = 0; } else sinceImage += 1;
+    if (!image) lines.push('(No screenshot: little changed visually. Add look: true to an action, or call observe, to see the page.)');
     lines.push(remaining > 0 ? `Actions left: ${remaining}.` : 'Action budget used up: record remaining features, then call finish.');
-    return observationContent(session, state, lines.join('\n'));
+    return observationContent(session, state, lines.join('\n'), {image});
   };
   const overBudget = () => used >= budget
     ? 'Action budget used up. Do not take more browser actions; record features and call finish.'
@@ -60,6 +89,7 @@ function makeTools(session, budget) {
 
   const ref = z.number().int().positive().describe('Element ref number from the latest observation');
   const why = z.string().max(200).describe('One short sentence: what you expect this to do');
+  const look = z.boolean().optional().describe('Also send a screenshot after this action (otherwise only when the page changes a lot)');
 
   const tools = [
     betaZodTool({
@@ -71,38 +101,38 @@ function makeTools(session, budget) {
     betaZodTool({
       name: 'click',
       description: 'Click an element. Returns what changed and a new observation.',
-      inputSchema: z.object({ref, why}),
-      run: async ({ref: r}) => overBudget() ?? actionResult(await session.click(r)),
+      inputSchema: z.object({ref, why, look}),
+      run: async ({ref: r, look: asked}) => overBudget() ?? actionResult(await session.click(r), {asked}),
     }),
     betaZodTool({
       name: 'hover',
       description: 'Move the mouse over an element to reveal hover states, tooltips or menus.',
-      inputSchema: z.object({ref, why}),
-      run: async ({ref: r}) => overBudget() ?? actionResult(await session.hover(r)),
+      inputSchema: z.object({ref, why, look}),
+      run: async ({ref: r, look: asked}) => overBudget() ?? actionResult(await session.hover(r), {asked}),
     }),
     betaZodTool({
       name: 'type',
       description: 'Replace the contents of a text field with the given text. Does not press Enter.',
-      inputSchema: z.object({ref, text: z.string().max(400), why}),
-      run: async ({ref: r, text}) => overBudget() ?? actionResult(await session.type(r, text)),
+      inputSchema: z.object({ref, text: z.string().max(400), why, look}),
+      run: async ({ref: r, text, look: asked}) => overBudget() ?? actionResult(await session.type(r, text), {asked}),
     }),
     betaZodTool({
       name: 'select_option',
       description: 'Choose an option by its visible label in a native <select> (role combobox).',
-      inputSchema: z.object({ref, option: z.string(), why}),
-      run: async ({ref: r, option}) => overBudget() ?? actionResult(await session.select(r, option)),
+      inputSchema: z.object({ref, option: z.string(), why, look}),
+      run: async ({ref: r, option, look: asked}) => overBudget() ?? actionResult(await session.select(r, option), {asked}),
     }),
     betaZodTool({
       name: 'press_key',
       description: 'Press one key: Enter, Escape, Tab, ArrowDown, ArrowUp, ArrowLeft, ArrowRight or Space.',
-      inputSchema: z.object({key: z.enum(['Enter', 'Escape', 'Tab', 'ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Space']), why}),
-      run: async ({key}) => overBudget() ?? actionResult(await session.press(key)),
+      inputSchema: z.object({key: z.enum(['Enter', 'Escape', 'Tab', 'ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Space']), why, look}),
+      run: async ({key, look: asked}) => overBudget() ?? actionResult(await session.press(key), {asked}),
     }),
     betaZodTool({
       name: 'scroll',
       description: 'Scroll the page up or down by about one screen.',
-      inputSchema: z.object({direction: z.enum(['up', 'down'])}),
-      run: async ({direction}) => overBudget() ?? actionResult(await session.scroll(direction)),
+      inputSchema: z.object({direction: z.enum(['up', 'down']), look}),
+      run: async ({direction, look: asked}) => overBudget() ?? actionResult(await session.scroll(direction), {asked: asked ?? true}),
     }),
     betaZodTool({
       name: 'go_back',
@@ -175,7 +205,7 @@ function makeTools(session, budget) {
       },
     }),
   ];
-  return {tools, get used() { return used; }, get finished() { return finished; }};
+  return {tools, stats, get used() { return used; }, get finished() { return finished; }};
 }
 
 /**
@@ -194,19 +224,25 @@ export async function explore({
   fallbacks = true,
   headless = true,
   allowNames = [],
+  crawl = true,
+  maxCrawlPages = 12,
   onProgress = () => {},
   client = new Anthropic(),
 }) {
   const session = await openSession({startUrl, output, storageState, headless, allowNames});
   const usage = {input: 0, output: 0, cacheRead: 0, cacheWrite: 0, requests: 0};
   try {
-    const first = await session.start();
+    await session.start();
+    // Free pre-crawl: the model starts with a site map instead of spending actions on navigation.
+    const sitemap = crawl ? await session.crawl({maxPages: maxCrawlPages}) : [];
+    const first = await session.observe();
     const kit = makeTools(session, maxActions);
     const intro = [
       `Explore the app at ${startUrl}. You have ${maxActions} browser actions.`,
       brief ? `Focus from the video team: ${brief}` : '',
+      sitemap.length ? `Site map from a quick crawl of the app's links (no clicks were made; buttons were not pressed):\n${describeSitemap(sitemap)}` : '',
       'Here is the first screen:',
-    ].filter(Boolean).join('\n');
+    ].filter(Boolean).join('\n\n');
 
     const runner = client.beta.messages.toolRunner({
       model,
@@ -252,9 +288,10 @@ export async function explore({
     const finished = kit.finished;
     const path = await session.save({
       summary: finished ?? {product_summary: null, note: 'Exploration ended before finish was called.'},
-      run: {model, effort, actionsUsed: kit.used, maxActions, stopReason: last?.stop_reason, usage},
+      run: {model, effort, actionsUsed: kit.used, maxActions, screenshotsAfterActions: kit.stats.images, crawledPages: sitemap.length,
+        stopReason: last?.stop_reason, usage},
     });
-    return {path, map: session.map, usage, finished: !!finished};
+    return {path, map: session.map, usage, finished: !!finished, stats: {...kit.stats, crawledPages: sitemap.length}};
   } finally {
     await session.close();
   }
