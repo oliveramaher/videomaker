@@ -71,7 +71,12 @@ export async function capture({
   const mark = (label, phase) => manifest.steps.push({label, phase, atMs: Date.now()});
 
   try {
-    browser = await chromium.launch({ignoreDefaultArgs: ['--hide-scrollbars'], ...launch});
+    // Screencast frames follow the browser's device scale, not the context's, so match them.
+    const deviceScale = contextOptions.deviceScaleFactor ?? 1;
+    const scaleArgs = deviceScale === 1 ? [] : [`--force-device-scale-factor=${deviceScale}`];
+    browser = await chromium.launch({
+      ignoreDefaultArgs: ['--hide-scrollbars'], ...launch, args: [...scaleArgs, ...(launch.args ?? [])],
+    });
     context = await browser.newContext({...contextOptions, viewport});
     const page = await context.newPage();
     page.setDefaultTimeout(20000);
@@ -97,7 +102,11 @@ export async function capture({
     const onAnimation = (kind, data) => animations.push({kind, atMs: Date.now(), data});
     const target = await observeTarget(session, onAnimation);
     acceptingFrames = true;
-    await session.send('Page.startScreencast', {format: 'png', everyNthFrame: 1});
+    // Without a max size, Chromium scales frames down to CSS pixels.
+    await session.send('Page.startScreencast', {
+      format: 'png', everyNthFrame: 1,
+      maxWidth: Math.round(viewport.width * deviceScale), maxHeight: Math.round(viewport.height * deviceScale),
+    });
 
     const checkpoint = (label) => {
       const result = snapshotQueue.then(async () => {

@@ -211,6 +211,44 @@ export function createDirector(page, viewport, emit) {
     },
     end() { record('end'); },
     mark(label) { record('marker', {label}); },
+    /** Record a region (viewport CSS px) that isn't a single element, e.g. content that just appeared. */
+    anchorRect(label, box, contentBox = box) {
+      record('anchor', {label, box, contentBox});
+      return box;
+    },
+    /** Record where an element is right now, so an edit can lift, spotlight or crop it. */
+    async anchor(label, locator) {
+      const box = await locator.boundingBox();
+      if (!box) throw new Error(`Anchor "${label}" has no visible bounding box.`);
+      // contentBox: tight bounds of the visible text and controls inside, for close-ups of
+      // wide containers whose real content only fills part of them.
+      const details = await locator.evaluate((element) => {
+        const computed = getComputedStyle(element);
+        const rects = [];
+        const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+          if (!node.textContent.trim() || !node.parentElement?.checkVisibility()) continue;
+          const range = document.createRange();
+          range.selectNodeContents(node);
+          rects.push(...range.getClientRects());
+        }
+        for (const child of element.querySelectorAll('button, input, select, textarea, img, svg, video, canvas')) {
+          if (child.checkVisibility()) rects.push(child.getBoundingClientRect());
+        }
+        const real = rects.filter((rect) => rect.width && rect.height);
+        if (!real.length) return {borderRadius: computed.borderRadius, backgroundColor: computed.backgroundColor};
+        const left = Math.min(...real.map((rect) => rect.left));
+        const top = Math.min(...real.map((rect) => rect.top));
+        const right = Math.max(...real.map((rect) => rect.right));
+        const bottom = Math.max(...real.map((rect) => rect.bottom));
+        return {
+          borderRadius: computed.borderRadius, backgroundColor: computed.backgroundColor,
+          contentBox: {x: left, y: top, width: right - left, height: bottom - top},
+        };
+      });
+      record('anchor', {label, box, ...details});
+      return box;
+    },
     cursor: {
       move,
       async hover(locator, {holdMs = 500, ...options} = {}) {

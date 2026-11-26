@@ -31,7 +31,7 @@ function buildCamera({cues, width, height}, strength) {
   return moves;
 }
 
-function pointerAt(track, atMs) {
+export function pointerAt(track, atMs) {
   const index = track.findLastIndex((cue) => cue.atMs <= atMs);
   const current = track[index];
   if (!current || current.action === 'hide') return null;
@@ -44,7 +44,7 @@ function pointerAt(track, atMs) {
   return current;
 }
 
-function VirtualPointer({point, click, pose, atMs, scale, accent}) {
+export function VirtualPointer({point, click, pose, atMs, scale, accent}) {
   const clickAge = click ? atMs - click.atMs : Infinity;
   const progress = clamp(clickAge / 360, 1);
   const size = 24 * scale;

@@ -1,5 +1,6 @@
 // npm run login   -- [--url <login page>] [--out <state.json>] [--manual]
 // npm run explore -- --url <app url> [--storage-state <state.json>] [--actions 40] [--brief "..."]
+// npm run make-ad -- [--url <app url> | --map <product-map.json>] [--storyboard <storyboard.json>] [--brief "..."]
 import {existsSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {parseArgs} from 'node:util';
@@ -62,8 +63,29 @@ try {
     console.log(`Tokens: ${usage.input} in (+${usage.cacheRead} cached read, ${usage.cacheWrite} cache write), `
       + `${usage.output} out over ${usage.requests} requests.`);
     console.log(`Product map: ${result.path}`);
+  } else if (command === 'make-ad') {
+    const {values} = parseArgs({args: rest, options: {
+      url: {type: 'string'}, 'storage-state': {type: 'string'}, output: {type: 'string'},
+      map: {type: 'string'}, storyboard: {type: 'string'}, actions: {type: 'string'}, brief: {type: 'string'},
+      model: {type: 'string'}, effort: {type: 'string'}, 'no-render': {type: 'boolean'},
+    }});
+    const storageState = values['storage-state'] ?? process.env.APP_STORAGE_STATE;
+    if (storageState && !existsSync(storageState)) throw new Error(`No session file at ${storageState}; run npm run login first.`);
+    const {makeAd} = await import('./make-ad.mjs');
+    await makeAd({
+      startUrl: values.url ?? process.env.APP_URL,
+      storageState,
+      mapPath: values.map,
+      storyboardPath: values.storyboard,
+      brief: values.brief ?? '',
+      maxActions: Number(values.actions ?? 40),
+      model: values.model,
+      effort: values.effort,
+      render: !values['no-render'],
+      ...(values.output ? {output: values.output} : {}),
+    });
   } else {
-    throw new Error('Usage: node src/explore-cli.mjs <login|explore> [options]');
+    throw new Error('Usage: node src/explore-cli.mjs <login|explore|make-ad> [options]');
   }
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error));

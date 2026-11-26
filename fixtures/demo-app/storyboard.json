@@ -1,0 +1,12 @@
+{
+  "appName": "Tasklane",
+  "headline": "Your next steps, *planned by AI.*",
+  "shots": [
+    {"feature": "Plan next steps with AI", "caption": "Tap *Plan with AI*", "emphasis": "signature", "lift": true,
+      "why": "The magic moment: suggestions write themselves"},
+    {"feature": "Add AI suggestions to the board", "caption": "Add them in *one click*", "emphasis": "supporting", "lift": false,
+      "why": "Payoff: the plan becomes real tasks"}
+  ],
+  "tagline": "Plan less. *Ship more.*",
+  "cta": "Try Tasklane free"
+}

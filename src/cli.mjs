@@ -28,7 +28,7 @@ try {
     run: recipe.default,
     viewport: recipe.viewport,
     launch: {headless: !values.headed, channel: values.channel, executablePath: values.executable},
-    context: {storageState: values['storage-state']},
+    context: {...recipe.context, storageState: values['storage-state']},
     snapshotIntervalMs: Number(values['interval-ms'] ?? 0),
     archive: !values['no-archive'],
     ...(values['no-assets'] ? {assets: false} : {}),

@@ -1,5 +1,6 @@
 import {copyFile, link, mkdir, readFile, writeFile} from 'node:fs/promises';
 import {basename, join, resolve} from 'node:path';
+import {extractBrand} from './brand.mjs';
 
 /** Publish only the footage and cues Remotion needs, keeping the raw bundle intact. */
 export async function prepareDemo({capture, publicDir, name = basename(resolve(capture)), fps = 30, cuts = []}) {
@@ -71,5 +72,6 @@ export async function prepareDemo({capture, publicDir, name = basename(resolve(c
     cues: direction.cues.map((cue) => ({...cue, atMs: cue.atMs - start})),
   };
   await writeFile(join(directory, 'timeline.json'), JSON.stringify(plan, null, 2));
+  await writeFile(join(directory, 'brand.json'), JSON.stringify(await extractBrand(capture), null, 2));
   return {directory, frames: timeline.length, seconds: timeline.length / fps};
 }

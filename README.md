@@ -110,6 +110,28 @@ Output lands in `output/explore/<timestamp>/`: `product-map.json`, `actions.json
 - **Cost.** Each action is one model request with a screenshot. `--actions` caps browser actions; old screenshots are cleared from context automatically. The CLI prints token usage at the end. Defaults: `claude-opus-5-5` at `--effort medium`.
 - `npm test` runs the explorer against the demo app, including the agent loop with a scripted model (no API calls).
 
+## Make a vertical ad
+
+`make-ad` runs the whole pipeline and saves every step in `output/ads/<timestamp>/`:
+
+1. **Explore** the app (or load an existing `--map`) → `product-map.json`
+2. **Brand**: read the palette from the site's CSS variables → `brand.json`
+3. **Storyboard**: Claude picks 2–4 shots, writes the headline, captions and CTA, and marks one signature moment → `storyboard.json`
+4. **Shoot plan**: the explorer's recorded steps compiled into director moves, continuing state between shots and hiding flagged clutter → `shoot-plan.json`
+5. **Film** at 2× pixel density. Each shot's *payoff* (whatever appeared after its last step) is detected and anchored automatically.
+6. **Render** `video/Ad.jsx`: a 1080×1920 ad with logo hook, floating card, push-ins on clicks, one sparkle on the signature click, the payoff lifted toward the viewer, captions, and an end card → `ad.mp4`
+
+```sh
+npm run make-ad -- --url https://app.example.com --brief "Focus on the AI planner"   # explores first (uses the API)
+npm run make-ad -- --map path/to/product-map.json                                     # skip exploring
+npm run make-ad -- --map path/to/product-map.json --storyboard path/to/storyboard.json   # no API calls at all
+```
+
+Try it offline on the demo app: run `npm run demo-app`, then `npm run login -- --url http://127.0.0.1:4317/login --out output/tasklane.storage-state.json`, then
+`npm run make-ad -- --map fixtures/demo-app/product-map.json --storyboard fixtures/demo-app/storyboard.json --storage-state output/tasklane.storage-state.json`.
+
+The effects live in [`video/effects.jsx`](video/effects.jsx), described for the storyboard in [`video/effects.catalog.json`](video/effects.catalog.json). Any intermediate file can be edited and passed back in. For example, rewrite captions in `storyboard.json` and rerun with `--storyboard`.
+
 ## Write a recipe
 
 The CLI loads a trusted JavaScript module with a default function. The function receives a normal Playwright `page`, a labeled `step` wrapper, and a `checkpoint` function.

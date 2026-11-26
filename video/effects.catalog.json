@@ -1,0 +1,83 @@
+{
+  "version": 1,
+  "notes": "Effects in video/effects.jsx. Times are composition frames; positions are composition pixels. 'cue' says which capture event an effect should be tied to. Keep the whole ad to one sparkle moment and one or two lifts; restraint is what makes it read as premium.",
+  "effects": [
+    {
+      "name": "BrandBackdrop",
+      "purpose": "Soft drifting gradient field in the brand's primary and accent colors behind everything.",
+      "mood": ["clean", "premium", "friendly"],
+      "cue": "whole ad",
+      "props": {"brand": "brand.json", "intensity": "0.6-1.2"},
+      "guidance": "Always pair with Grain at low opacity to avoid banding."
+    },
+    {
+      "name": "Grain",
+      "purpose": "Barely visible film grain over the frame.",
+      "mood": ["cinematic"],
+      "cue": "whole ad",
+      "props": {"opacity": "0.03-0.06"}
+    },
+    {
+      "name": "FloatingCard",
+      "purpose": "Presents the captured UI as a floating screen with rounded corners and layered tinted shadows; enters by tilting up out of perspective.",
+      "mood": ["premium", "product-first"],
+      "cue": "first product shot",
+      "props": {"enterAt": "frame", "exitAt": "frame", "radius": "20-32"},
+      "guidance": "Width ~90% of a 1080px vertical frame. Let the tilt settle before any click happens on screen."
+    },
+    {
+      "name": "Lift",
+      "purpose": "Pulls one UI region (a result, a card, a chart) out of the screen toward the camera with a growing shadow, then puts it back.",
+      "mood": ["focus", "reveal"],
+      "cue": "the moment the payoff content appears (e.g. 'Suggestions ready')",
+      "props": {"box": "anchor box from direction.json", "from/to": "rects", "at": "frame", "returnAt": "frame", "shimmerAt": "frame"},
+      "guidance": "Return it before the next click that targets it. Dim the card behind slightly while lifted. One or two lifts per ad."
+    },
+    {
+      "name": "LogoPop",
+      "purpose": "The product's logo, cropped from its own UI, on a white badge that pops with overshoot and a soft brand halo.",
+      "mood": ["brand", "confident"],
+      "cue": "hook (first 2s) and end card",
+      "props": {"box": "logo anchor", "scale": "1.8-2.6 for hero, ~1 for a corner watermark"},
+      "guidance": "Show the brand in the first 3 seconds; keep a small version visible during the product shots."
+    },
+    {
+      "name": "SparkleBurst",
+      "purpose": "A quick burst of a few four-point stars at a click.",
+      "mood": ["magic", "AI"],
+      "cue": "click on the signature action (pointer down)",
+      "props": {"count": "6-10", "radius": "80-140", "size": "14-22", "colors": "[primary, accent, white]"},
+      "guidance": "Use once per ad, on the single most important click."
+    },
+    {
+      "name": "GlowPulse",
+      "purpose": "A brand-colored ring that blooms around a control or region.",
+      "mood": ["guide the eye"],
+      "cue": "just before or at a click; when content updates",
+      "props": {"rect": "composition rect", "duration": "24-36"}
+    },
+    {
+      "name": "ShimmerSweep",
+      "purpose": "One diagonal sweep of light across an element.",
+      "mood": ["polish", "reveal"],
+      "cue": "right after a Lift settles, or on the CTA",
+      "props": {"duration": "22-32", "strength": "0.4-0.7"},
+      "guidance": "Once per element."
+    },
+    {
+      "name": "KineticCaption",
+      "purpose": "Headline or caption whose words rise in from a blur with a stagger; *words* in asterisks get the brand gradient.",
+      "mood": ["energetic", "clear"],
+      "cue": "each story beat",
+      "props": {"size": "64-96", "y": "keep inside the top two-thirds of a vertical frame"},
+      "guidance": "Max ~6 words per caption; one emphasized word."
+    },
+    {
+      "name": "CTAButton",
+      "purpose": "End-card call to action pill with a pop and a light sweep.",
+      "mood": ["conversion"],
+      "cue": "end card",
+      "props": {"text": "3-4 words"}
+    }
+  ]
+}

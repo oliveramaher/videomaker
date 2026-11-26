@@ -10,7 +10,8 @@
     ".": "./src/capture.mjs",
     "./prepare": "./src/prepare-demo.mjs",
     "./remotion": "./video/ProductDemo.jsx",
-    "./explore": "./src/explore/agent.mjs"
+    "./explore": "./src/explore/agent.mjs",
+    "./make-ad": "./src/make-ad.mjs"
   },
   "scripts": {
     "capture": "node src/cli.mjs",
@@ -20,7 +21,8 @@
     "demo-app": "node fixtures/demo-app/server.mjs",
     "login": "node src/explore-cli.mjs login",
     "explore": "node src/explore-cli.mjs explore",
-    "test": "node --test"
+    "test": "node --test",
+    "make-ad": "node src/explore-cli.mjs make-ad"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "1.14.0",

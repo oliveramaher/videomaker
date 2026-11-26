@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "note": "Hand-written in the shape the explorer produces, for testing the ad pipeline without API calls. URLs use port 4317 (npm run demo-app); tests rewrite the origin.",
+  "app": {"startUrl": "http://127.0.0.1:4317/app", "origin": "http://127.0.0.1:4317"},
+  "pages": {
+    "/app": {"url": "http://127.0.0.1:4317/app", "title": "Tasklane", "purpose": "List of projects with progress"},
+    "/app#/project/:id": {"url": "http://127.0.0.1:4317/app#/project/1", "title": "Tasklane", "purpose": "Kanban board for one project"},
+    "/app#/insights": {"url": "http://127.0.0.1:4317/app#/insights", "title": "Tasklane", "purpose": "Completion metrics and velocity chart"}
+  },
+  "features": [
+    {
+      "name": "Plan next steps with AI",
+      "summary": "Generates three suggested next steps for the project from its current tasks",
+      "startUrl": "http://127.0.0.1:4317/app#/project/1",
+      "steps": [{"action": "click", "locator": {"role": "button", "name": "✨ Plan with AI", "nth": 0}}],
+      "result": "A gradient card titled Suggested next steps fills in with three items and an Add all to board button",
+      "visualScore": 5
+    },
+    {
+      "name": "Add AI suggestions to the board",
+      "summary": "Adds every AI-suggested step to the To do column in one click",
+      "startUrl": "http://127.0.0.1:4317/app#/project/1",
+      "steps": [
+        {"action": "click", "locator": {"role": "button", "name": "✨ Plan with AI", "nth": 0}},
+        {"action": "click", "locator": {"role": "button", "name": "Add all to board", "nth": 0}}
+      ],
+      "result": "The three suggestions appear as new tasks in To do",
+      "visualScore": 4
+    },
+    {
+      "name": "Create a project from a template",
+      "summary": "Starts a new project prefilled with launch tasks",
+      "startUrl": "http://127.0.0.1:4317/app",
+      "steps": [
+        {"action": "click", "locator": {"role": "button", "name": "New project", "nth": 0}},
+        {"action": "type", "locator": {"role": "textbox", "name": "Project name", "nth": 0}, "text": "Q3 launch plan"},
+        {"action": "select", "locator": {"role": "combobox", "name": "Template", "nth": 0}, "option": "Product launch"},
+        {"action": "click", "locator": {"role": "button", "name": "Create project", "nth": 0}}
+      ],
+      "result": "A new Q3 launch plan card appears in the project grid",
+      "visualScore": 4
+    },
+    {
+      "name": "Change the insights time range",
+      "summary": "Switches the velocity chart between 7 and 30 days",
+      "startUrl": "http://127.0.0.1:4317/app#/insights",
+      "steps": [{"action": "select", "locator": {"role": "combobox", "name": "Time range", "nth": 0}, "option": "Last 30 days"}],
+      "result": "The chart bars animate to new heights",
+      "visualScore": 3
+    }
+  ],
+  "clutter": [
+    {"role": "button", "name": "Accept", "reason": "Cookie banner"},
+    {"role": "button", "name": "Dismiss tip", "reason": "Onboarding tooltip over the header"}
+  ],
+  "summary": {
+    "product_summary": "Tasklane is a lightweight project tracker with kanban boards and an AI planner that suggests next steps.",
+    "audience": "Small product teams and founders",
+    "top_ad_moments": ["Plan with AI filling in suggested steps", "Adding all suggestions to the board", "Creating a project from a template"]
+  }
+}
