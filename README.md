@@ -92,6 +92,24 @@ This example requires a reachable English chat composer. Browser capture options
 
 Use `--interval-ms 1000` for additional structured snapshots between named checkpoints. Use `--no-archive` to skip MHTML or `--no-assets` to skip saving resource bodies. Interval snapshots can affect page timing and bundle size, especially when MHTML is enabled.
 
+## Explore an unfamiliar app
+
+The explorer lets Claude learn a product nobody has scripted yet. It logs in, clicks through the app in a real browser, and writes a **product map**: each screen's purpose, each feature it exercised as replayable steps (role and accessible-name locators), a 1–5 score for how good that feature would look on screen, and clutter to hide when filming. A later storyboard step will turn the map into director recipes.
+
+```sh
+cp .env.example .env          # add ANTHROPIC_API_KEY and the app's URL and login
+npm run demo-app              # optional: a local practice app, Tasklane, on port 4317
+npm run login                 # signs in with APP_USERNAME/APP_PASSWORD, saves a session
+npm run explore -- --actions 40 --brief "Focus on creating and planning projects"
+```
+
+Output lands in `output/explore/<timestamp>/`: `product-map.json`, `actions.jsonl` (every action with before/after changes), and `shots/` (a clean and a numbered screenshot per step).
+
+- **Credentials** are typed into the login form by code and saved as a Playwright session. They are never sent to the model. Use `npm run login -- --manual` to sign in by hand for MFA or SSO.
+- **Guard.** Clicks on anything that looks destructive or outward-facing (delete, pay, upgrade, send, invite, log out…) are refused in code, as is pressing Enter in a form whose button would be refused, and navigating to another site. Pass `--allow "Exact button name"` to permit a specific button.
+- **Cost.** Each action is one model request with a screenshot. `--actions` caps browser actions; old screenshots are cleared from context automatically. The CLI prints token usage at the end. Defaults: `claude-opus-5-5` at `--effort medium`.
+- `npm test` runs the explorer against the demo app, including the agent loop with a scripted model (no API calls).
+
 ## Write a recipe
 
 The CLI loads a trusted JavaScript module with a default function. The function receives a normal Playwright `page`, a labeled `step` wrapper, and a `checkpoint` function.
